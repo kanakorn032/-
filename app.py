@@ -10,7 +10,7 @@ st.subheader("บันทึกการเงินและวิเครา
 
 # 2. เชื่อมต่อ API Key (ดึงจาก Secrets)
 try:
-    genai.configure(api_key=st.secrets["AIzaSyBQB585MnSECX8Tn0T7dNXimer9isB8Iaw"])
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     model = genai.GenerativeModel('gemini-1.5-flash')
 except:
     st.error("กรุณาตั้งค่า GOOGLE_API_KEY ใน Secrets")
@@ -42,53 +42,3 @@ if submit_button and item_name:
     st.success(f"บันทึก {item_name} เรียบร้อยแล้ว!")
 
 # --- ส่วนการแสดงผลและคำนวณ ---
-if st.session_state.history:
-    df = pd.DataFrame(st.session_state.history)
-    
-    # 1. คำนวณยอดรวม
-    total_income = df[df['ประเภท'] == "รายรับ"]['จำนวนเงิน'].sum()
-    total_expense = df[df['ประเภท'] == "รายจ่าย"]['จำนวนเงิน'].sum()
-    balance = total_income - total_expense
-
-    # 2. แสดง Card สรุป
-    c1, c2, c3 = st.columns(3)
-    c1.metric("รายรับ", f"{total_income:,} ฿")
-    c2.metric("รายจ่าย", f"{total_expense:,} ฿")
-    c3.metric("คงเหลือ", f"{balance:,} ฿")
-
-    # 3. กราฟและตาราง
-    st.write("---")
-    fig = px.pie(df, values='จำนวนเงิน', names='หมวดหมู่', title='สัดส่วนการใช้จ่าย')
-    st.plotly_chart(fig)
-
-    st.write("### 📋 ประวัติล่าสุด")
-    st.table(df)
-
-    # 4. ปุ่มดาวน์โหลด
-    csv = df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button(
-        label="📥 ดาวน์โหลดข้อมูลเป็น Excel (CSV)",
-        data=csv,
-        file_name='my_finance.csv',
-        mime='text/csv',
-    )
-
-    # 5. ปุ่ม AI วิเคราะห์ (บรรทัดที่เคย Error)
-    if st.button("🚀 ให้ AI วิเคราะห์สั้นๆ"):
-        recent_data = df.tail(5).to_string()
-        prompt = f"วิเคราะห์ข้อมูลนี้: {recent_data} ขอคำแนะนำสั้นๆ 2 ข้อ (ไม่เกิน 50 คำ)"
-        with st.status("🔍 AI กำลังสรุป..."):
-            try:
-                response = model.generate_content(prompt)
-                st.info(response.text)
-            except Exception as e:
-                st.error(f"AI Error: {e}")
-
-    # 6. ปุ่มรีเซ็ตสีแดง (บรรทัดที่เคย Error)
-    st.write("---")
-    if st.button("🗑️ ล้างข้อมูลทั้งหมดเพื่อเริ่มใหม่", type="primary"):
-        st.session_state.history = []
-        st.rerun()
-
-else:
-    st.info("ยังไม่มีข้อมูล กรุณากรอกรายการด้านบนครับ")
