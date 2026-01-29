@@ -32,13 +32,13 @@ with st.form("finance_form", clear_on_submit=True):
     submit_button = st.form_submit_button("➕ บันทึกข้อมูล")
 
 if submit_button and item_name:
-    new_data = {
+     new_data = {
         "รายการ": item_name,
         "จำนวนเงิน": amount,
         "ประเภท": item_type,
         "หมวดหมู่": category
     }
-    st.session_state.history.append(new_data)
-    st.success(f"บันทึก {item_name} เรียบร้อยแล้ว!")
+     st.session_state.history.append(new_data)
+     st.success(f"บันทึก {item_name} เรียบร้อยแล้ว!")
 
 # --- ส่วนการแสดงผลและคำนวณ ---
