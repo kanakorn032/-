@@ -1,86 +1,95 @@
 import streamlit as st
-import google.generativeai as genai
-import streamlit as st
-import google.generativeai as genai
 import pandas as pd
-import plotly.express as px # ตัวทำกราฟสวยๆ
+import google.generativeai as genai
+import plotly.express as px
 
-# --- 1. ตั้งค่า AI ---
-GOOGLE_API_KEY = "วAIzaSyBQB585MnSECX8Tn0T7dNXimer9isB8Iaw"
-genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 1. การตั้งค่าพื้นฐาน
+st.set_page_config(page_title="AI Smart Finance", layout="centered")
+st.title("💎 AI Smart Finance")
+st.subheader("บันทึกการเงินและวิเคราะห์ด้วย AI (ข้อมูลบันทึกลง Sheet)")
 
-# --- 2. ตั้งค่าหน้าตาเว็บ ---
-st.set_page_config(page_title="วางแผนการเงิน", layout="centered")
+# 2. เชื่อมต่อ API Key (ดึงจาก Secrets)
+try:
+    genai.configure(api_key=st.secrets["AIzaSyBQB585MnSECX8Tn0T7dNXimer9isB8Iaw"])
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except:
+    st.error("กรุณาตั้งค่า GOOGLE_API_KEY ใน Secrets")
 
+# 3. จัดการข้อมูลใน Session State (สำรองไว้ในเครื่องชั่วคราว)
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-st.title("💎 วางแผนการเงิน")
-st.caption("บันทึกการเงินและวิเคราะห์ด้วย AI พร้อมกราฟสรุป")
+# --- ส่วนของการบันทึกข้อมูล ---
+with st.form("finance_form", clear_on_submit=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        item_name = st.text_input("📝 รายการ", placeholder="เช่น ค่าข้าว")
+        amount = st.number_input("💰 จำนวนเงิน", min_value=0, step=1)
+    with col2:
+        category = st.selectbox("📁 หมวดหมู่", ["🍴 อาหาร", "🚗 เดินทาง", "🏠 ของใช้", "✨ อื่นๆ"])
+        item_type = st.radio("🏷️ ประเภท", ["รายจ่าย", "รายรับ"], horizontal=True)
+    
+    submit_button = st.form_submit_button("➕ บันทึกข้อมูล")
 
-# --- 3. ส่วน Dashboard ตัวเลข ---
-total_income = sum(item['จำนวนเงิน'] for item in st.session_state.history if item['ประเภท'] == "รายรับ")
-total_expense = sum(item['จำนวนเงิน'] for item in st.session_state.history if item['ประเภท'] == "รายจ่าย")
-balance = total_income - total_expense
+if submit_button and item_name:
+    new_data = {
+        "รายการ": item_name,
+        "จำนวนเงิน": amount,
+        "ประเภท": item_type,
+        "หมวดหมู่": category
+    }
+    st.session_state.history.append(new_data)
+    st.success(f"บันทึก {item_name} เรียบร้อยแล้ว!")
 
-col_a, col_b, col_c = st.columns(3)
-col_a.metric("รายรับทั้งหมด", f"{total_income:,} ฿")
-col_b.metric("รายจ่ายทั้งหมด", f"-{total_expense:,} ฿", delta_color="inverse")
-col_c.metric("เงินคงเหลือ", f"{balance:,} ฿")
-
-# --- 4. ส่วนบันทึกข้อมูล ---
-with st.container():
-    st.markdown("### 📝 บันทึกรายการ")
-    c1, c2 = st.columns(2)
-    with c1:
-        item_name = st.text_input("รายการ", placeholder="เช่น ค่าข้าว")
-        category = st.selectbox("หมวดหมู่", ["🍴 อาหาร", "🚗 เดินทาง", "🏠 ของใช้", "🎮 บันเทิง", "✨ อื่นๆ"])
-    with c2:
-        item_amount = st.number_input("จำนวนเงิน", min_value=0, step=1)
-        item_type = st.radio("ประเภท", ["รายจ่าย", "รายรับ"], horizontal=True)
-
-    if st.button("➕ บันทึกข้อมูล"):
-        if item_name and item_amount > 0:
-            st.session_state.history.append({
-                "รายการ": item_name,
-                "จำนวนเงิน": item_amount,
-                "หมวดหมู่": category,
-                "ประเภท": item_type
-            })
-            st.rerun()
-
-# --- 5. ส่วนแสดงกราฟและตาราง (จะโชว์เมื่อมีข้อมูลเท่านั้น) ---
+# --- ส่วนการแสดงผลและคำนวณ ---
 if st.session_state.history:
     df = pd.DataFrame(st.session_state.history)
     
-    st.divider()
-    col_left, col_right = st.columns([1, 1])
-    
-    with col_left:
-        st.subheader("📊 สัดส่วนรายจ่าย")
-        # กรองเฉพาะรายจ่ายมาทำกราฟ
-        expense_df = df[df['ประเภท'] == "รายจ่าย"]
-        if not expense_df.empty:
-            fig = px.pie(expense_df, values='จำนวนเงิน', names='หมวดหมู่', hole=0.4)
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.write("ยังไม่มีข้อมูลรายจ่าย")
+    # คำนวณยอดรวม
+    total_income = df[df['ประเภท'] == "รายรับ"]['จำนวนเงิน'].sum()
+    total_expense = df[df['ประเภท'] == "รายจ่าย"]['จำนวนเงิน'].sum()
+    balance = total_income - total_expense
 
-    with col_right:
-        st.subheader("📋 ประวัติล่าสุด")
-        st.dataframe(df.tail(5), hide_index=True)
+    # แสดง Card สรุป
+    c1, c2, c3 = st.columns(3)
+    c1.metric("รายรับ", f"{total_income:,} ฿")
+    c2.metric("รายจ่าย", f"{total_expense:,} ฿")
+    c3.metric("คงเหลือ", f"{balance:,} ฿")
 
-    # --- 6. ส่วน AI วิเคราะห์ ---
-    st.divider()
-    if st.button("🚀 ให้ AI วิเคราะห์ภาพรวมการเงิน"):
-        all_data = df.to_string() # แปลงตารางเป็นตัวหนังสือให้ AI อ่าน
-        prompt = f"วิเคราะห์ข้อมูลการเงินนี้: {all_data} สรุปพฤติกรรมและบอกวิธีประหยัด 3 ข้อ"
+    # กราฟวงกลม
+    st.write("---")
+    fig = px.pie(df, values='จำนวนเงิน', names='หมวดหมู่', title='สัดส่วนการใช้จ่ายตามหมวดหมู่')
+    st.plotly_chart(fig)
+
+    # ตารางรายการ
+    st.write("### 📋 ประวัติล่าสุด")
+    st.table(df)
+    csv = df.to_csv(index=False).encode('utf-8-sig')
+st.download_button(
+    label="📥 ดาวน์โหลดข้อมูลเป็น Excel (CSV)",
+    data=csv,
+    file_name='my_finance.csv',
+    mime='text/csv',
+)
+
+    # --- ปุ่ม AI (ปรับให้เร็วขึ้น) ---
+    if st.button("🚀 ให้ AI วิเคราะห์สั้นๆ"):
+        # ส่งข้อมูลแค่ 5 รายการล่าสุดเพื่อให้ AI ทำงานไว
+        recent_data = df.tail(5).to_string()
+        prompt = f"วิเคราะห์ข้อมูลนี้: {recent_data} ขอคำแนะนำสั้นๆ 2 ข้อ (ไม่เกิน 50 คำ)"
         
-        with st.status("🔍 AI กำลังประมวลผล..."):
+        with st.status("🔍 AI กำลังสรุป..."):
             try:
                 response = model.generate_content(prompt)
-                st.subheader("💡 คำแนะนำจาก AI")
-                st.success(response.text)
+                st.info(response.text)
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"AI Error: {e}")
+
+    # --- ปุ่มรีเซ็ตสีแดง (Reset) ---
+    st.write("---")
+    if st.button("🗑️ ล้างข้อมูลทั้งหมดเพื่อเริ่มใหม่", type="primary"):
+        st.session_state.history = []
+        st.rerun()
+
+else:
+    st.info("ยังไม่มีข้อมูล กรุณากรอกรายการด้านบนครับ")
